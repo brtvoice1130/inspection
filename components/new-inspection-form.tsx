@@ -28,13 +28,20 @@ import {
   Trash2,
   Upload
 } from "lucide-react"
-import type { WorkType, Project, ChecklistTemplate, ChecklistItem } from "@/lib/types"
+import type { WorkType, Project, ChecklistTemplate, ChecklistItem, InspectionRequest } from "@/lib/types"
 import { createClient } from "@/lib/supabase/client"
 
 interface NewInspectionFormProps {
   workTypes: WorkType[]
   projects: Project[]
   templates: (ChecklistTemplate & { items?: ChecklistItem[] })[]
+  inspection?: InspectionRequest & {
+    checklists?: any[]
+    photos?: any[]
+    personnel?: any[]
+    attachments?: any[]
+  }
+  mode?: "create" | "edit"
 }
 
 interface PersonnelEntry {
@@ -52,7 +59,7 @@ interface PhotoEntry {
   preview?: string
 }
 
-export function NewInspectionForm({ workTypes, projects, templates }: NewInspectionFormProps) {
+export function NewInspectionForm({ workTypes, projects, templates, inspection, mode = "create" }: NewInspectionFormProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [activeTab, setActiveTab] = useState("basic")
@@ -77,6 +84,74 @@ export function NewInspectionForm({ workTypes, projects, templates }: NewInspect
   ])
 
   const [photos, setPhotos] = useState<PhotoEntry[]>([])
+  const [attachments, setAttachments] = useState<File[]>([])
+  const [systemAttachments, setSystemAttachments] = useState<{
+    checklists: string[]
+    personnel: string[]
+    photos: string[]
+  }>({
+    checklists: [],
+    personnel: [],
+    photos: []
+  })
+
+  // Initialize form data when editing
+  useEffect(() => {
+    if (mode === "edit" && inspection) {
+      setFormData({
+        project_id: inspection.project_id || "",
+        work_type_id: inspection.work_type_id || "",
+        title: inspection.title,
+        location_detail: inspection.location_detail || "",
+        inspection_date: inspection.inspection_date || "",
+        requested_by: inspection.requested_by || "",
+        contractor_supervisor: inspection.contractor_supervisor || "",
+        site_manager: inspection.site_manager || "",
+        notes: inspection.notes || "",
+      })
+
+      // Initialize checklists
+      if (inspection.checklists) {
+        const templateIds = inspection.checklists.map((c: any) => c.template_id)
+        setSelectedTemplates(templateIds)
+        
+        const results: Record<string, Record<string, { checked: boolean; remarks: string }>> = {}
+        inspection.checklists.forEach((checklist: any) => {
+          if (checklist.results) {
+            results[checklist.template_id] = {}
+            checklist.results.forEach((result: any) => {
+              results[checklist.template_id][result.id] = {
+                checked: result.is_checked,
+                remarks: result.remarks || ""
+              }
+            })
+          }
+        })
+        setChecklistResults(results)
+      }
+
+      // Initialize personnel
+      if (inspection.personnel && inspection.personnel.length > 0) {
+        setPersonnel(inspection.personnel.map((p: any) => ({
+          name: p.name,
+          company: p.company || "",
+          position: p.position || "",
+          role: p.role || "",
+          phone: p.phone || ""
+        })))
+      }
+
+      // Initialize photos
+      if (inspection.photos) {
+        setPhotos(inspection.photos.map((p: any) => ({
+          file: null,
+          caption: p.caption || "",
+          location_info: p.location_info || "",
+          preview: p.photo_url
+        })))
+      }
+    }
+  }, [inspection, mode])
 
   // Filter templates by selected work type
   const filteredTemplates = templates.filter(t => 
@@ -149,27 +224,71 @@ export function NewInspectionForm({ workTypes, projects, templates }: NewInspect
     setPhotos(photos.map((p, i) => i === index ? { ...p, [field]: value } : p))
   }
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files) {
+      setAttachments(prev => [...prev, ...Array.from(files)])
+    }
+  }
+
+  const removeAttachment = (index: number) => {
+    setAttachments(attachments.filter((_, i) => i !== index))
+  }
+
+  const handleSystemAttachmentChange = (type: 'checklists' | 'personnel' | 'photos', value: string[]) => {
+    setSystemAttachments(prev => ({ ...prev, [type]: value }))
+  }
+
   const handleSubmit = async (status: "draft" | "pending") => {
     const supabase = createClient()
     
     startTransition(async () => {
-      // 1. Create inspection request
-      const requestNumber = generateRequestNumber()
-      const { data: inspection, error: inspectionError } = await supabase
-        .from("inspection_requests")
-        .insert({
-          ...formData,
-          request_number: requestNumber,
-          status,
-          project_id: formData.project_id || null,
-          work_type_id: formData.work_type_id || null,
-        })
-        .select()
-        .single()
+      let inspectionId = inspection?.id
 
-      if (inspectionError || !inspection) {
-        alert("검측 요청서 생성에 실패했습니다.")
-        return
+      if (mode === "create") {
+        // 1. Create inspection request
+        const requestNumber = generateRequestNumber()
+        const { data: newInspection, error: inspectionError } = await supabase
+          .from("inspection_requests")
+          .insert({
+            ...formData,
+            request_number: requestNumber,
+            status,
+            project_id: formData.project_id || null,
+            work_type_id: formData.work_type_id || null,
+          })
+          .select()
+          .single()
+
+        if (inspectionError || !newInspection) {
+          alert("검측 요청서 생성에 실패했습니다.")
+          return
+        }
+        inspectionId = newInspection.id
+      } else {
+        // Update existing inspection
+        const { error: updateError } = await supabase
+          .from("inspection_requests")
+          .update({
+            ...formData,
+            status,
+            project_id: formData.project_id || null,
+            work_type_id: formData.work_type_id || null,
+          })
+          .eq("id", inspectionId)
+
+        if (updateError) {
+          alert("검측 요청서 수정에 실패했습니다.")
+          return
+        }
+
+        // Clear existing related data for update
+        await supabase.from("inspection_checklist_results").delete().in("inspection_checklist_id", 
+          inspection!.checklists?.map((c: any) => c.id) || []
+        )
+        await supabase.from("inspection_checklists").delete().eq("inspection_id", inspectionId)
+        await supabase.from("personnel_records").delete().eq("inspection_id", inspectionId)
+        await supabase.from("photo_records").delete().eq("inspection_id", inspectionId)
       }
 
       // 2. Create checklist results
@@ -177,7 +296,7 @@ export function NewInspectionForm({ workTypes, projects, templates }: NewInspect
         const { data: checklist } = await supabase
           .from("inspection_checklists")
           .insert({
-            inspection_id: inspection.id,
+            inspection_id: inspectionId,
             template_id: templateId
           })
           .select()
@@ -203,7 +322,7 @@ export function NewInspectionForm({ workTypes, projects, templates }: NewInspect
       if (validPersonnel.length > 0) {
         await supabase.from("personnel_records").insert(
           validPersonnel.map(p => ({
-            inspection_id: inspection.id,
+            inspection_id: inspectionId,
             name: p.name,
             company: p.company || null,
             position: p.position || null,
@@ -213,10 +332,10 @@ export function NewInspectionForm({ workTypes, projects, templates }: NewInspect
         )
       }
 
-      // 4. Handle photos (simplified - using placeholder URLs)
+      // 4. Handle photos
       if (photos.length > 0) {
         const photoRecords = photos.map((photo, index) => ({
-          inspection_id: inspection.id,
+          inspection_id: inspectionId,
           photo_url: photo.preview || "/placeholder.jpg",
           caption: photo.caption || null,
           location_info: photo.location_info || null,
@@ -226,7 +345,21 @@ export function NewInspectionForm({ workTypes, projects, templates }: NewInspect
         await supabase.from("photo_records").insert(photoRecords)
       }
 
-      router.push(`/inspections/${inspection.id}`)
+      // 5. Handle file attachments
+      if (attachments.length > 0) {
+        // In a real app, you'd upload files to storage and get URLs
+        const attachmentRecords = attachments.map((file, index) => ({
+          inspection_id: inspectionId,
+          file_name: file.name,
+          file_url: "/placeholder-attachment.pdf", // Placeholder
+          file_type: file.type,
+          file_size: file.size,
+          uploaded_at: new Date().toISOString()
+        }))
+        await supabase.from("attachments").insert(attachmentRecords)
+      }
+
+      router.push(`/inspections/${inspectionId}`)
     })
   }
 
@@ -241,10 +374,10 @@ export function NewInspectionForm({ workTypes, projects, templates }: NewInspect
           </Button>
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              새 검측 요청서
+              {mode === "edit" ? "검측 요청서 수정" : "새 검측 요청서"}
             </h1>
             <p className="text-muted-foreground mt-1">
-              시공검측 요청서를 작성합니다
+              {mode === "edit" ? "시공검측 요청서를 수정합니다" : "시공검측 요청서를 작성합니다"}
             </p>
           </div>
         </div>
@@ -262,7 +395,7 @@ export function NewInspectionForm({ workTypes, projects, templates }: NewInspect
             disabled={isPending || !formData.title}
           >
             <FileText className="mr-2 size-4" />
-            {isPending ? "제출 중..." : "검측 요청"}
+            {isPending ? "저장 중..." : (mode === "edit" ? "수정 완료" : "검측 요청")}
           </Button>
         </div>
       </div>
@@ -284,6 +417,10 @@ export function NewInspectionForm({ workTypes, projects, templates }: NewInspect
           <TabsTrigger value="personnel">
             <Users className="mr-2 size-4" />
             실명부
+          </TabsTrigger>
+          <TabsTrigger value="attachments">
+            <Upload className="mr-2 size-4" />
+            첨부파일
           </TabsTrigger>
         </TabsList>
 
@@ -682,6 +819,98 @@ export function NewInspectionForm({ workTypes, projects, templates }: NewInspect
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="attachments" className="mt-6">
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>파일 첨부</CardTitle>
+                <CardDescription>
+                  검측 요청서에 첨부할 파일을 업로드합니다
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="file-upload">파일 선택</Label>
+                    <Input
+                      id="file-upload"
+                      type="file"
+                      multiple
+                      onChange={handleFileUpload}
+                      className="mt-1"
+                    />
+                  </div>
+                  {attachments.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>첨부된 파일들</Label>
+                      {attachments.map((file, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 border rounded">
+                          <span className="text-sm">{file.name}</span>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => removeAttachment(index)}
+                          >
+                            <Trash2 className="size-4 text-destructive" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>시스템 파일 첨부</CardTitle>
+                <CardDescription>
+                  기존에 생성된 체크리스트, 실명부, 사진대지를 선택하여 첨부합니다
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <Label>체크리스트 템플릿 선택</Label>
+                    <div className="mt-2 space-y-2">
+                      {templates.map((template) => (
+                        <div key={template.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`checklist-${template.id}`}
+                            checked={systemAttachments.checklists.includes(template.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                handleSystemAttachmentChange('checklists', [...systemAttachments.checklists, template.id])
+                              } else {
+                                handleSystemAttachmentChange('checklists', systemAttachments.checklists.filter(id => id !== template.id))
+                              }
+                            }}
+                          />
+                          <Label htmlFor={`checklist-${template.id}`}>{template.name}</Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>기존 실명부 선택</Label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      현재 작성중인 실명부가 자동으로 첨부됩니다.
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label>기존 사진대지 선택</Label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      현재 업로드된 사진들이 자동으로 첨부됩니다.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

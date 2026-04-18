@@ -67,6 +67,15 @@ export function InspectionDetail({ inspection }: InspectionDetailProps) {
             </p>
           </div>
         </div>
+        <div className="flex gap-2">
+          {inspection.status === "draft" && (
+            <Button asChild>
+              <Link href={`/inspections/${inspection.id}/edit`}>
+                수정
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       <Tabs defaultValue="overview">

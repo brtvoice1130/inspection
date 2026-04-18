@@ -46,6 +46,11 @@ const navigation = [
     icon: Users,
   },
   {
+    name: "모바일 메인",
+    href: "/mobile",
+    icon: Smartphone,
+  },
+  {
     name: "프로젝트 설정",
     href: "/projects",
     icon: Settings,
@@ -84,14 +89,7 @@ export function AppSidebar() {
           )
         })}
       </nav>
-      <div className="border-t border-sidebar-border p-4 space-y-3">
-        <Link
-          href="/"
-          className="group flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-        >
-          <Smartphone className="size-4" />
-          모바일 메인
-        </Link>
+      <div className="border-t border-sidebar-border p-4">
         <p className="text-xs text-sidebar-foreground/50">
           v1.0.0
         </p>

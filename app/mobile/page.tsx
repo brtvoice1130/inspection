@@ -1,8 +1,8 @@
 import { createClient } from "@/lib/supabase/server"
 import { MainLayout } from "@/components/main-layout"
-import { RootMainPage } from "@/components/root-main-page"
+import { MobileMainContent } from "@/components/mobile-main-content"
 
-export default async function DashboardPage() {
+export default async function MobilePage() {
   const supabase = await createClient()
 
   const [
@@ -15,7 +15,7 @@ export default async function DashboardPage() {
       .from("inspection_requests")
       .select("*, work_type:work_types(*), project:projects(*)")
       .order("created_at", { ascending: false })
-      .limit(5),
+      .limit(10),
     supabase.from("work_types").select("*").order("sort_order"),
     supabase.from("checklist_templates").select("*").eq("is_active", true),
     supabase.from("projects").select("*").order("created_at", { ascending: false }),
@@ -23,7 +23,7 @@ export default async function DashboardPage() {
 
   return (
     <MainLayout>
-      <RootMainPage
+      <MobileMainContent
         recentInspections={recentInspections || []}
         workTypesCount={workTypes?.length || 0}
         templatesCount={templates?.length || 0}

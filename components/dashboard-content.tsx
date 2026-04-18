@@ -87,47 +87,36 @@ export function DashboardContent({
             {recentInspections.map((inspection) => (
               <Card key={inspection.id} className="overflow-hidden">
                 <CardContent className="p-4">
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-foreground text-sm">
-                            {inspection.request_number}
-                          </p>
-                          <Badge className={`${statusColors[inspection.status]} text-xs`}>
-                            {statusLabels[inspection.status]}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {inspection.work_type?.name || "공종 미지정"} | {inspection.location_detail || "위치 미지정"}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          요청자: {inspection.requested_by || "미지정"} | 예정일: {inspection.inspection_date || "미지정"}
-                        </p>
-                      </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="text-lg font-semibold text-foreground truncate">
+                        {inspection.title || inspection.request_number}
+                      </h3>
+                      <p className="text-sm text-muted-foreground mt-1 truncate">
+                        {inspection.request_number} | {inspection.work_type?.name || "공종 미지정"}
+                      </p>
                     </div>
-                    
-                    <div className="flex gap-2 pt-2 border-t">
-                      <Button asChild variant="ghost" size="sm" className="flex-1 h-8">
-                        <Link href={`/inspections/${inspection.id}/checklists`}>
-                          <span className="mr-1">📋</span>
-                          체크리스트
-                        </Link>
-                      </Button>
-                      <Button asChild variant="ghost" size="sm" className="flex-1 h-8">
-                        <Link href={`/inspections/${inspection.id}/photos`}>
-                          <span className="mr-1">📷</span>
-                          사진대지
-                        </Link>
-                      </Button>
-                      <Button asChild variant="ghost" size="sm" className="flex-1 h-8">
-                        <Link href={`/inspections/${inspection.id}/personnel`}>
-                          <span className="mr-1">👥</span>
-                          실명부
-                        </Link>
-                      </Button>
-                    </div>
+                    <Badge className={`${statusColors[inspection.status]} text-xs whitespace-nowrap`}>
+                      {statusLabels[inspection.status]}
+                    </Badge>
                   </div>
+                </CardContent>
+                <CardContent className="grid grid-cols-3 gap-2 border-t p-3">
+                  <Button asChild variant="ghost" className="h-12 rounded-lg">
+                    <Link href={`/inspections/${inspection.id}/checklists`}>
+                      <span className="text-2xl">📋</span>
+                    </Link>
+                  </Button>
+                  <Button asChild variant="ghost" className="h-12 rounded-lg">
+                    <Link href={`/inspections/${inspection.id}/photos`}>
+                      <span className="text-2xl">📷</span>
+                    </Link>
+                  </Button>
+                  <Button asChild variant="ghost" className="h-12 rounded-lg">
+                    <Link href={`/inspections/${inspection.id}/personnel`}>
+                      <span className="text-2xl">👥</span>
+                    </Link>
+                  </Button>
                 </CardContent>
               </Card>
             ))}

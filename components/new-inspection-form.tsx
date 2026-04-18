@@ -418,10 +418,6 @@ export function NewInspectionForm({ workTypes, projects, templates, inspection, 
             <Users className="mr-2 size-4" />
             실명부
           </TabsTrigger>
-          <TabsTrigger value="attachments">
-            <Upload className="mr-2 size-4" />
-            첨부파일
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="basic" className="mt-6">
@@ -544,6 +540,82 @@ export function NewInspectionForm({ workTypes, projects, templates, inspection, 
                   rows={3}
                 />
               </div>
+
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle>파일 첨부</CardTitle>
+                  <CardDescription>
+                    검측 요청서에 첨부할 파일을 업로드하고 시스템 첨부를 선택합니다
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div>
+                    <Label htmlFor="file-upload">파일 선택</Label>
+                    <Input
+                      id="file-upload"
+                      type="file"
+                      multiple
+                      onChange={handleFileUpload}
+                      className="mt-1"
+                    />
+                  </div>
+                  {attachments.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>첨부된 파일들</Label>
+                      {attachments.map((file, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 border rounded">
+                          <span className="text-sm">{file.name}</span>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => removeAttachment(index)}
+                          >
+                            <Trash2 className="size-4 text-destructive" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    <div>
+                      <Label>체크리스트 템플릿 첨부</Label>
+                      <div className="mt-2 space-y-2">
+                        {templates.map((template) => (
+                          <div key={template.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`checklist-${template.id}`}
+                              checked={systemAttachments.checklists.includes(template.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  handleSystemAttachmentChange('checklists', [...systemAttachments.checklists, template.id])
+                                } else {
+                                  handleSystemAttachmentChange('checklists', systemAttachments.checklists.filter(id => id !== template.id))
+                                }
+                              }}
+                            />
+                            <Label htmlFor={`checklist-${template.id}`}>{template.name}</Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label>실명부 첨부</Label>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        작성 중인 실명부가 해당 요청서에 함께 첨부됩니다.
+                      </p>
+                    </div>
+
+                    <div>
+                      <Label>사진대지 첨부</Label>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        업로드된 사진들이 해당 요청서에 함께 첨부됩니다.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </CardContent>
           </Card>
         </TabsContent>
@@ -821,97 +893,7 @@ export function NewInspectionForm({ workTypes, projects, templates, inspection, 
           </Card>
         </TabsContent>
 
-        <TabsContent value="attachments" className="mt-6">
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>파일 첨부</CardTitle>
-                <CardDescription>
-                  검측 요청서에 첨부할 파일을 업로드합니다
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="file-upload">파일 선택</Label>
-                    <Input
-                      id="file-upload"
-                      type="file"
-                      multiple
-                      onChange={handleFileUpload}
-                      className="mt-1"
-                    />
-                  </div>
-                  {attachments.length > 0 && (
-                    <div className="space-y-2">
-                      <Label>첨부된 파일들</Label>
-                      {attachments.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 border rounded">
-                          <span className="text-sm">{file.name}</span>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => removeAttachment(index)}
-                          >
-                            <Trash2 className="size-4 text-destructive" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>시스템 파일 첨부</CardTitle>
-                <CardDescription>
-                  기존에 생성된 체크리스트, 실명부, 사진대지를 선택하여 첨부합니다
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <Label>체크리스트 템플릿 선택</Label>
-                    <div className="mt-2 space-y-2">
-                      {templates.map((template) => (
-                        <div key={template.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`checklist-${template.id}`}
-                            checked={systemAttachments.checklists.includes(template.id)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                handleSystemAttachmentChange('checklists', [...systemAttachments.checklists, template.id])
-                              } else {
-                                handleSystemAttachmentChange('checklists', systemAttachments.checklists.filter(id => id !== template.id))
-                              }
-                            }}
-                          />
-                          <Label htmlFor={`checklist-${template.id}`}>{template.name}</Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label>기존 실명부 선택</Label>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      현재 작성중인 실명부가 자동으로 첨부됩니다.
-                    </p>
-                  </div>
-
-                  <div>
-                    <Label>기존 사진대지 선택</Label>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      현재 업로드된 사진들이 자동으로 첨부됩니다.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
       </Tabs>
     </div>
   )

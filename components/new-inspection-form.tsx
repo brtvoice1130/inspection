@@ -85,15 +85,9 @@ export function NewInspectionForm({ workTypes, projects, templates, inspection, 
 
   const [photos, setPhotos] = useState<PhotoEntry[]>([])
   const [attachments, setAttachments] = useState<File[]>([])
-  const [systemAttachments, setSystemAttachments] = useState<{
-    checklists: string[]
-    personnel: string[]
-    photos: string[]
-  }>({
-    checklists: [],
-    personnel: [],
-    photos: []
-  })
+  const [attachChecklist, setAttachChecklist] = useState(false)
+  const [attachPersonnel, setAttachPersonnel] = useState(false)
+  const [attachPhotos, setAttachPhotos] = useState(false)
 
   // Initialize form data when editing
   useEffect(() => {
@@ -150,6 +144,10 @@ export function NewInspectionForm({ workTypes, projects, templates, inspection, 
           preview: p.photo_url
         })))
       }
+
+      setAttachChecklist(!!(inspection.checklists && inspection.checklists.length > 0))
+      setAttachPersonnel(!!(inspection.personnel && inspection.personnel.length > 0))
+      setAttachPhotos(!!(inspection.photos && inspection.photos.length > 0))
     }
   }, [inspection, mode])
 
@@ -235,10 +233,6 @@ export function NewInspectionForm({ workTypes, projects, templates, inspection, 
     setAttachments(attachments.filter((_, i) => i !== index))
   }
 
-  const handleSystemAttachmentChange = (type: 'checklists' | 'personnel' | 'photos', value: string[]) => {
-    setSystemAttachments(prev => ({ ...prev, [type]: value }))
-  }
-
   const handleSubmit = async (status: "draft" | "pending") => {
     const supabase = createClient()
     
@@ -292,33 +286,35 @@ export function NewInspectionForm({ workTypes, projects, templates, inspection, 
       }
 
       // 2. Create checklist results
-      for (const templateId of selectedTemplates) {
-        const { data: checklist } = await supabase
-          .from("inspection_checklists")
-          .insert({
-            inspection_id: inspectionId,
-            template_id: templateId
-          })
-          .select()
-          .single()
+      if (attachChecklist && selectedTemplates.length > 0) {
+        for (const templateId of selectedTemplates) {
+          const { data: checklist } = await supabase
+            .from("inspection_checklists")
+            .insert({
+              inspection_id: inspectionId,
+              template_id: templateId
+            })
+            .select()
+            .single()
 
-        if (checklist) {
-          const template = templates.find(t => t.id === templateId)
-          if (template?.items) {
-            const results = template.items.map((item, index) => ({
-              inspection_checklist_id: checklist.id,
-              item_text: item.item_text,
-              is_checked: checklistResults[templateId]?.[item.id]?.checked || false,
-              remarks: checklistResults[templateId]?.[item.id]?.remarks || null,
-              sort_order: index + 1
-            }))
-            await supabase.from("inspection_checklist_results").insert(results)
+          if (checklist) {
+            const template = templates.find(t => t.id === templateId)
+            if (template?.items) {
+              const results = template.items.map((item, index) => ({
+                inspection_checklist_id: checklist.id,
+                item_text: item.item_text,
+                is_checked: checklistResults[templateId]?.[item.id]?.checked || false,
+                remarks: checklistResults[templateId]?.[item.id]?.remarks || null,
+                sort_order: index + 1
+              }))
+              await supabase.from("inspection_checklist_results").insert(results)
+            }
           }
         }
       }
 
       // 3. Create personnel records
-      const validPersonnel = personnel.filter(p => p.name.trim())
+      const validPersonnel = attachPersonnel ? personnel.filter(p => p.name.trim()) : []
       if (validPersonnel.length > 0) {
         await supabase.from("personnel_records").insert(
           validPersonnel.map(p => ({
@@ -333,7 +329,7 @@ export function NewInspectionForm({ workTypes, projects, templates, inspection, 
       }
 
       // 4. Handle photos
-      if (photos.length > 0) {
+      if (attachPhotos && photos.length > 0) {
         const photoRecords = photos.map((photo, index) => ({
           inspection_id: inspectionId,
           photo_url: photo.preview || "/placeholder.jpg",
@@ -406,15 +402,15 @@ export function NewInspectionForm({ workTypes, projects, templates, inspection, 
             <FileText className="mr-2 size-4" />
             기본정보
           </TabsTrigger>
-          <TabsTrigger value="checklist">
+          <TabsTrigger value="checklist" disabled={!attachChecklist}>
             <ListChecks className="mr-2 size-4" />
             체크리스트
           </TabsTrigger>
-          <TabsTrigger value="photos">
+          <TabsTrigger value="photos" disabled={!attachPhotos}>
             <ImageIcon className="mr-2 size-4" />
             사진대지
           </TabsTrigger>
-          <TabsTrigger value="personnel">
+          <TabsTrigger value="personnel" disabled={!attachPersonnel}>
             <Users className="mr-2 size-4" />
             실명부
           </TabsTrigger>
@@ -543,12 +539,81 @@ export function NewInspectionForm({ workTypes, projects, templates, inspection, 
 
               <Card className="mt-6">
                 <CardHeader>
-                  <CardTitle>파일 첨부</CardTitle>
+                  <CardTitle>첨부 선택</CardTitle>
                   <CardDescription>
-                    검측 요청서에 첨부할 파일을 업로드하고 시스템 첨부를 선택합니다
+                    첨부할 체크리스트, 실명부, 사진대지 옵션을 선택한 후 각 탭에서 내용을 작성합니다.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={attachChecklist}
+                        onCheckedChange={(checked) => {
+                          const enabled = !!checked
+                          setAttachChecklist(enabled)
+                          if (!enabled) {
+                            setSelectedTemplates([])
+                            setChecklistResults({})
+                            if (activeTab === "checklist") {
+                              setActiveTab("basic")
+                            }
+                          } else if (activeTab === "basic") {
+                            setActiveTab("checklist")
+                          }
+                        }}
+                      />
+                      <div>
+                        <p className="font-medium">체크리스트 첨부</p>
+                        <p className="text-sm text-muted-foreground">체크하면 체크리스트 탭이 활성화됩니다.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={attachPersonnel}
+                        onCheckedChange={(checked) => {
+                          const enabled = !!checked
+                          setAttachPersonnel(enabled)
+                          if (!enabled) {
+                            setPersonnel([{ name: "", company: "", position: "", role: "시공사", phone: "" }])
+                            if (activeTab === "personnel") {
+                              setActiveTab("basic")
+                            }
+                          } else if (activeTab === "basic") {
+                            setActiveTab("personnel")
+                          }
+                        }}
+                      />
+                      <div>
+                        <p className="font-medium">실명부 첨부</p>
+                        <p className="text-sm text-muted-foreground">체크하면 실명부 탭이 활성화됩니다.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={attachPhotos}
+                        onCheckedChange={(checked) => {
+                          const enabled = !!checked
+                          setAttachPhotos(enabled)
+                          if (!enabled) {
+                            setPhotos([])
+                            if (activeTab === "photos") {
+                              setActiveTab("basic")
+                            }
+                          } else if (activeTab === "basic") {
+                            setActiveTab("photos")
+                          }
+                        }}
+                      />
+                      <div>
+                        <p className="font-medium">사진대지 첨부</p>
+                        <p className="text-sm text-muted-foreground">체크하면 사진대지 탭이 활성화됩니다.</p>
+                      </div>
+                    </div>
+                  </div>
+
                   <div>
                     <Label htmlFor="file-upload">파일 선택</Label>
                     <Input
@@ -559,6 +624,7 @@ export function NewInspectionForm({ workTypes, projects, templates, inspection, 
                       className="mt-1"
                     />
                   </div>
+
                   {attachments.length > 0 && (
                     <div className="space-y-2">
                       <Label>첨부된 파일들</Label>
@@ -576,44 +642,6 @@ export function NewInspectionForm({ workTypes, projects, templates, inspection, 
                       ))}
                     </div>
                   )}
-
-                  <div className="space-y-4">
-                    <div>
-                      <Label>체크리스트 템플릿 첨부</Label>
-                      <div className="mt-2 space-y-2">
-                        {templates.map((template) => (
-                          <div key={template.id} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`checklist-${template.id}`}
-                              checked={systemAttachments.checklists.includes(template.id)}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  handleSystemAttachmentChange('checklists', [...systemAttachments.checklists, template.id])
-                                } else {
-                                  handleSystemAttachmentChange('checklists', systemAttachments.checklists.filter(id => id !== template.id))
-                                }
-                              }}
-                            />
-                            <Label htmlFor={`checklist-${template.id}`}>{template.name}</Label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label>실명부 첨부</Label>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        작성 중인 실명부가 해당 요청서에 함께 첨부됩니다.
-                      </p>
-                    </div>
-
-                    <div>
-                      <Label>사진대지 첨부</Label>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        업로드된 사진들이 해당 요청서에 함께 첨부됩니다.
-                      </p>
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
             </CardContent>
@@ -629,108 +657,137 @@ export function NewInspectionForm({ workTypes, projects, templates, inspection, 
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label>체크리스트 템플릿 선택</Label>
-                <div className="grid gap-2 md:grid-cols-2">
-                  {filteredTemplates.length === 0 ? (
-                    <p className="text-sm text-muted-foreground col-span-2">
-                      {formData.work_type_id 
-                        ? "선택한 공종에 해당하는 체크리스트 템플릿이 없습니다" 
-                        : "공종을 먼저 선택해주세요"}
-                    </p>
-                  ) : (
-                    filteredTemplates.map((template) => (
-                      <div
-                        key={template.id}
-                        className="flex items-center gap-3 rounded-lg border border-border p-4"
-                      >
-                        <Checkbox
-                          checked={selectedTemplates.includes(template.id)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedTemplates([...selectedTemplates, template.id])
-                            } else {
-                              setSelectedTemplates(selectedTemplates.filter(id => id !== template.id))
-                            }
-                          }}
-                        />
-                        <div>
-                          <p className="font-medium text-foreground">{template.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {template.items?.length || 0}개 항목
-                          </p>
-                        </div>
-                      </div>
-                    ))
-                  )}
+              {!attachChecklist ? (
+                <div className="p-6 rounded-lg border border-border bg-muted/50 text-muted-foreground">
+                  체크리스트 첨부를 기본정보에서 선택하면 이 탭이 활성화됩니다.
                 </div>
-              </div>
-
-              {selectedTemplates.length > 0 && (
+              ) : (
                 <div className="space-y-6">
-                  {selectedTemplates.map(templateId => {
-                    const template = templates.find(t => t.id === templateId)
-                    if (!template) return null
-                    return (
-                      <div key={templateId} className="space-y-4">
-                        <h4 className="font-semibold text-foreground border-b border-border pb-2">
-                          {template.name}
-                        </h4>
-                        <div className="space-y-3">
-                          {template.items
-                            ?.sort((a, b) => a.sort_order - b.sort_order)
-                            .map((item, index) => (
-                              <div 
-                                key={item.id}
-                                className="flex items-start gap-4 rounded-lg border border-border p-4"
-                              >
-                                <Checkbox
-                                  checked={checklistResults[templateId]?.[item.id]?.checked || false}
-                                  onCheckedChange={(checked) => {
-                                    setChecklistResults(prev => ({
-                                      ...prev,
-                                      [templateId]: {
-                                        ...prev[templateId],
-                                        [item.id]: {
-                                          ...prev[templateId]?.[item.id],
-                                          checked: checked as boolean
-                                        }
-                                      }
-                                    }))
-                                  }}
-                                />
-                                <div className="flex-1 space-y-2">
-                                  <p className="font-medium text-foreground">
-                                    {index + 1}. {item.item_text}
-                                    {item.is_required && (
-                                      <span className="ml-2 text-destructive">*</span>
-                                    )}
-                                  </p>
-                                  <Input
-                                    placeholder="비고"
-                                    value={checklistResults[templateId]?.[item.id]?.remarks || ""}
-                                    onChange={(e) => {
-                                      setChecklistResults(prev => ({
-                                        ...prev,
-                                        [templateId]: {
-                                          ...prev[templateId],
-                                          [item.id]: {
-                                            ...prev[templateId]?.[item.id],
-                                            remarks: e.target.value
-                                          }
-                                        }
-                                      }))
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                            ))}
-                        </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="checklist-work-type">공종 선택</Label>
+                      <Select
+                        value={formData.work_type_id}
+                        onValueChange={(value) => {
+                          setFormData(prev => ({ ...prev, work_type_id: value }))
+                          // 공종 변경 시 해당 공종의 모든 템플릿을 자동 선택
+                          const workTypeTemplates = templates.filter(t => t.work_type_id === value)
+                          setSelectedTemplates(workTypeTemplates.map(t => t.id))
+                        }}
+                      >
+                        <SelectTrigger id="checklist-work-type">
+                          <SelectValue placeholder="공종 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {workTypes.map((wt) => (
+                            <SelectItem key={wt.id} value={wt.id}>
+                              {wt.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={attachChecklist}
+                        onCheckedChange={(checked) => {
+                          const enabled = !!checked
+                          setAttachChecklist(enabled)
+                          if (!enabled) {
+                            setSelectedTemplates([])
+                            if (activeTab === "checklist") {
+                              setActiveTab("basic")
+                            }
+                          }
+                        }}
+                      />
+                      <div>
+                        <p className="font-medium">체크리스트 탭 활성화</p>
+                        <p className="text-sm text-muted-foreground">이 항목을 켜면 체크리스트 작성이 가능합니다.</p>
                       </div>
-                    )
-                  })}
-                </div>
-              )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>체크리스트 항목</Label>
+                    {filteredTemplates.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        {formData.work_type_id 
+                          ? "선택한 공종에 해당하는 체크리스트 템플릿이 없습니다" 
+                          : "공종을 먼저 선택해주세요"}
+                      </p>
+                    ) : selectedTemplates.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        선택된 템플릿이 없습니다
+                      </p>
+                    ) : (
+                      <div className="space-y-6">
+                        {selectedTemplates.map(templateId => {
+                          const template = templates.find(t => t.id === templateId)
+                          if (!template) return null
+                          return (
+                            <div key={templateId} className="space-y-4">
+                              <h4 className="font-semibold text-foreground border-b border-border pb-2">
+                                {template.name}
+                              </h4>
+                              <div className="space-y-3">
+                                {template.items
+                                  ?.sort((a, b) => a.sort_order - b.sort_order)
+                                  .map((item, index) => (
+                                    <div 
+                                      key={item.id}
+                                      className="flex items-start gap-4 rounded-lg border border-border p-4"
+                                    >
+                                      <Checkbox
+                                        checked={checklistResults[templateId]?.[item.id]?.checked || false}
+                                        onCheckedChange={(checked) => {
+                                          setChecklistResults(prev => ({
+                                            ...prev,
+                                            [templateId]: {
+                                              ...prev[templateId],
+                                              [item.id]: {
+                                                ...prev[templateId]?.[item.id],
+                                                checked: checked as boolean
+                                              }
+                                            }
+                                          }))
+                                        }}
+                                      />
+                                      <div className="flex-1 space-y-2">
+                                        <p className="font-medium text-foreground">
+                                          {index + 1}. {item.item_text}
+                                          {item.is_required && (
+                                            <span className="ml-2 text-destructive">*</span>
+                                          )}
+                                        </p>
+                                        <Input
+                                          placeholder="비고"
+                                          value={checklistResults[templateId]?.[item.id]?.remarks || ""}
+                                          onChange={(e) => {
+                                            setChecklistResults(prev => ({
+                                              ...prev,
+                                              [templateId]: {
+                                                ...prev[templateId],
+                                                [item.id]: {
+                                                  ...prev[templateId]?.[item.id],
+                                                  remarks: e.target.value
+                                                }
+                                              }
+                                            }))
+                                          }}
+                                        />
+                                      </div>
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+            </div>
+          )}
             </CardContent>
           </Card>
         </TabsContent>

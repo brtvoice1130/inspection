@@ -10,8 +10,12 @@ import {
   FolderOpen, 
   ListChecks, 
   Plus,
-  ArrowRight 
+  ArrowRight,
+  CheckSquare,
+  Camera,
+  Users
 } from "lucide-react"
+import { useIsMobile } from "@/hooks/use-mobile"
 import type { InspectionRequest } from "@/lib/types"
 
 interface DashboardContentProps {
@@ -41,6 +45,108 @@ export function DashboardContent({
   templatesCount,
   projectsCount,
 }: DashboardContentProps) {
+  const isMobile = useIsMobile()
+
+  if (isMobile) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              검측 요청서
+            </h1>
+            <p className="text-muted-foreground mt-1 text-sm">
+              시공검측 요청서를 관리합니다
+            </p>
+          </div>
+          <Button asChild size="sm">
+            <Link href="/inspections/new">
+              <Plus className="mr-2 size-4" />
+              검측요청
+            </Link>
+          </Button>
+        </div>
+
+        {recentInspections.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <FileText className="size-12 text-muted-foreground/50" />
+              <h3 className="mt-4 text-lg font-semibold text-foreground">
+                작성된 검측 요청서가 없습니다
+              </h3>
+              <p className="mt-2 text-sm text-muted-foreground text-center max-w-sm">
+                새 검측 요청서를 작성하여 시공 검측을 요청하세요
+              </p>
+              <Button asChild className="mt-4">
+                <Link href="/inspections/new">
+                  <Plus className="mr-2 size-4" />
+                  첫 요청서 작성하기
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {recentInspections.map((inspection) => (
+              <Card key={inspection.id} className="overflow-hidden">
+                <CardContent className="p-4">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-foreground text-sm">
+                            {inspection.request_number}
+                          </p>
+                          <Badge className={`${statusColors[inspection.status]} text-xs`}>
+                            {statusLabels[inspection.status]}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {inspection.work_type?.name || "공종 미지정"} | {inspection.location_detail || "위치 미지정"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          요청자: {inspection.requested_by || "미지정"} | 예정일: {inspection.inspection_date || "미지정"}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2 pt-2 border-t">
+                      <Button asChild variant="ghost" size="sm" className="flex-1 h-8">
+                        <Link href={`/inspections/${inspection.id}/checklists`}>
+                          <CheckSquare className="mr-1 size-3" />
+                          체크리스트
+                        </Link>
+                      </Button>
+                      <Button asChild variant="ghost" size="sm" className="flex-1 h-8">
+                        <Link href={`/inspections/${inspection.id}/photos`}>
+                          <Camera className="mr-1 size-3" />
+                          사진대지
+                        </Link>
+                      </Button>
+                      <Button asChild variant="ghost" size="sm" className="flex-1 h-8">
+                        <Link href={`/inspections/${inspection.id}/personnel`}>
+                          <Users className="mr-1 size-3" />
+                          실명부
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/inspections">
+                전체 목록 보기
+                <ArrowRight className="ml-2 size-4" />
+              </Link>
+            </Button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">

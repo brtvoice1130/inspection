@@ -11,9 +11,6 @@ import {
   ListChecks, 
   Plus,
   ArrowRight,
-  CheckSquare,
-  Camera,
-  Users
 } from "lucide-react"
 import { useIsMobile } from "@/hooks/use-mobile"
 import type { InspectionRequest } from "@/lib/types"
@@ -113,19 +110,19 @@ export function DashboardContent({
                     <div className="flex gap-2 pt-2 border-t">
                       <Button asChild variant="ghost" size="sm" className="flex-1 h-8">
                         <Link href={`/inspections/${inspection.id}/checklists`}>
-                          <CheckSquare className="mr-1 size-3" />
+                          <span className="mr-1">📋</span>
                           체크리스트
                         </Link>
                       </Button>
                       <Button asChild variant="ghost" size="sm" className="flex-1 h-8">
                         <Link href={`/inspections/${inspection.id}/photos`}>
-                          <Camera className="mr-1 size-3" />
+                          <span className="mr-1">📷</span>
                           사진대지
                         </Link>
                       </Button>
                       <Button asChild variant="ghost" size="sm" className="flex-1 h-8">
                         <Link href={`/inspections/${inspection.id}/personnel`}>
-                          <Users className="mr-1 size-3" />
+                          <span className="mr-1">👥</span>
                           실명부
                         </Link>
                       </Button>
